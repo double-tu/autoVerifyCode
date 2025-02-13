@@ -96,7 +96,14 @@ class VerifyCodeWindow(QMainWindow):
         tray_menu.addAction(quit_action)
         
         self.tray.setContextMenu(tray_menu)
+        # 添加双击事件处理
+        self.tray.activated.connect(self.on_tray_activated)
         self.tray.show()
+
+    def on_tray_activated(self, reason):
+        # QSystemTrayIcon.DoubleClick 的值是 2
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.copy_code()
 
     def fetch_code(self, paste=True):
         """获取验证码"""
