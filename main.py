@@ -45,14 +45,10 @@ class VerifyCodeWindow(QMainWindow):
         self.text_display.setReadOnly(True)
         layout.addWidget(self.text_display)
         
-        # 创建按钮
-        get_button = QPushButton("获取")
-        get_button.clicked.connect(self.manual_fetch)
-        layout.addWidget(get_button)
-        
-        copy_button = QPushButton("复制")
-        copy_button.clicked.connect(self.copy_code)
-        layout.addWidget(copy_button)
+        # 创建"获取并复制"按钮
+        fetch_and_copy_button = QPushButton("获取并复制")
+        fetch_and_copy_button.clicked.connect(self.fetch_and_copy)
+        layout.addWidget(fetch_and_copy_button)
         
         # 创建系统托盘
         self.setup_tray()
@@ -85,14 +81,14 @@ class VerifyCodeWindow(QMainWindow):
         show_action = QAction("显示界面", self)
         show_action.triggered.connect(self.show)
         
-        copy_action = QAction("复制验证码", self)
-        copy_action.triggered.connect(self.copy_code)
+        fetch_and_copy_action = QAction("获取并复制", self)
+        fetch_and_copy_action.triggered.connect(self.fetch_and_copy)
         
         quit_action = QAction("退出", self)
         quit_action.triggered.connect(self.quit_app)
         
         tray_menu.addAction(show_action)
-        tray_menu.addAction(copy_action)
+        tray_menu.addAction(fetch_and_copy_action)
         tray_menu.addAction(quit_action)
         
         self.tray.setContextMenu(tray_menu)
@@ -103,7 +99,7 @@ class VerifyCodeWindow(QMainWindow):
     def on_tray_activated(self, reason):
         # QSystemTrayIcon.DoubleClick 的值是 2
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            self.copy_code()
+            self.fetch_and_copy()
 
     def fetch_code(self, paste=True):
         """获取验证码"""
@@ -197,6 +193,11 @@ class VerifyCodeWindow(QMainWindow):
         self.timer.stop()  # 停止旧的定时器
         self.start_timer()  # 使用新平台的配置重启定时器
         self.fetch_code(paste=False)  # 切换平台后立即获取新数据
+
+    def fetch_and_copy(self):
+        """获取验证码并复制到剪贴板"""
+        self.manual_fetch()  # 先获取新的验证码
+        self.copy_code()     # 然后复制到剪贴板
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
