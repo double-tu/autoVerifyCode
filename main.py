@@ -10,12 +10,17 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                            QMenu, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QAction
+import os
 
 class VerifyCodeWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("验证码工具")
         self.setFixedSize(400, 300)
+        
+        # 使用绝对路径设置图标
+        icon_path = os.path.abspath("app.ico")
+        self.setWindowIcon(QIcon(icon_path))
         
         # 初始化变量
         self.cached_code = {"date": "", "verifyCode": ""}
@@ -163,6 +168,22 @@ class VerifyCodeWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # 设置应用程序ID (Windows特定)
+    import ctypes
+    myappid = 'mycompany.myproduct.subproduct.version'  # 随意的字符串
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    
+    # 确保图标路径是绝对路径
+    icon_path = os.path.abspath("app.ico")
+    
+    # 设置应用程序图标
+    app_icon = QIcon(icon_path)
+    app.setWindowIcon(app_icon)
+    
     window = VerifyCodeWindow()
+    # 确保窗口也使用相同的图标路径
+    window.setWindowIcon(app_icon)
     window.show()
+    
     sys.exit(app.exec()) 
