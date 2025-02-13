@@ -26,6 +26,9 @@ class VerifyCodeWindow(QMainWindow):
         self.cached_code = {"date": "", "verifyCode": ""}
         self.config = self.load_config()
         
+        # 添加一个标志位来防止重复触发
+        self.last_update_time = 0
+        
         # 创建主窗口部件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -34,6 +37,7 @@ class VerifyCodeWindow(QMainWindow):
         # 创建下拉框
         self.platform_combo = QComboBox()
         self.platform_combo.addItems(["github", "gitee"])
+        self.platform_combo.currentTextChanged.connect(self.on_platform_changed)
         layout.addWidget(self.platform_combo)
         
         # 创建文本显示框
@@ -58,7 +62,7 @@ class VerifyCodeWindow(QMainWindow):
         self.timer.timeout.connect(self.fetch_code)
         
         # 首次运行立即获取验证码
-        self.fetch_code(paste=False)
+        QTimer.singleShot(100, lambda: self.fetch_code(paste=False))
         
         # 启动定时器
         self.start_timer()
@@ -95,8 +99,18 @@ class VerifyCodeWindow(QMainWindow):
         self.tray.show()
 
     def fetch_code(self, paste=True):
+        """获取验证码"""
+        # 添加调试日志
+        print(f"fetch_code called at {datetime.now()}, paste={paste}")
+        
         platform = self.platform_combo.currentText()
         if platform not in self.config:
+            return
+        
+        current_time = datetime.now().timestamp()
+        
+        # 如果距离上次更新时间小于1秒，则跳过
+        if current_time - self.last_update_time < 1:
             return
         
         cfg = self.config[platform]
@@ -133,6 +147,7 @@ class VerifyCodeWindow(QMainWindow):
                 pyperclip.copy(content["verifyCode"])
                 
                 if paste:
+                    self.last_update_time = current_time
                     keyboard.write(content["verifyCode"])
                 
         except Exception as e:
@@ -154,8 +169,12 @@ class VerifyCodeWindow(QMainWindow):
         )
 
     def start_timer(self):
+        """启动定时器"""
+        if self.timer.isActive():
+            self.timer.stop()
+        
         platform = self.platform_combo.currentText()
-        interval = self.config[platform]["interval"] * 1000  # 转换为毫秒
+        interval = self.config[platform]["interval"] * 1000
         self.timer.start(interval)
 
     def closeEvent(self, event):
@@ -165,6 +184,12 @@ class VerifyCodeWindow(QMainWindow):
     def quit_app(self):
         self.tray.hide()
         QApplication.quit()
+
+    def on_platform_changed(self, platform):
+        """处理平台切换"""
+        self.timer.stop()  # 停止旧的定时器
+        self.start_timer()  # 使用新平台的配置重启定时器
+        self.fetch_code(paste=False)  # 切换平台后立即获取新数据
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
