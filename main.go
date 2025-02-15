@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"syscall"
@@ -40,9 +41,21 @@ type VerifyCode struct {
 // 全局变量，用于在不同文件间共享
 var (
 	globalConfig *Config
+	logFile      *os.File
 )
 
 func main() {
+	// 初始化日志
+	var err error
+	logFile, err = os.OpenFile("log.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("无法打开日志文件:", err)
+	}
+	defer logFile.Close()
+
+	// 设置日志输出到文件和控制台
+	log.SetOutput(io.MultiWriter(logFile, os.Stdout))
+
 	// Initialize main thread handling for macOS
 	mainthread.Init(func() {
 		// 初始化配置
