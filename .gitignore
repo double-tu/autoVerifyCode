@@ -1,6 +1,9 @@
 # 配置文件（包含敏感信息）
 config.yaml
 
+# 日志文件
+*.log
+
 # Python
 __pycache__/
 *.py[cod]
