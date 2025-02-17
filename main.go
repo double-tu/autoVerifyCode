@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/go-vgo/robotgo"
 	"github.com/getlantern/systray"
@@ -29,8 +30,11 @@ type Config struct {
 		Path       string `yaml:"path"`
 	} `yaml:"gitee"`
 	Setting struct {
-		Interval int    `yaml:"interval"`
-		Hotkey   string `yaml:"hotkey"`
+		Interval                int    `yaml:"interval"`
+		Hotkey                  string `yaml:"hotkey"`
+		MaxDateDiffSeconds      int    `yaml:"max_date_diff_seconds"`
+		PollingIntervalMillis   int    `yaml:"polling_interval_milliseconds"`
+		MaxPollingAttempts      int    `yaml:"max_polling_attempts"`
 	} `yaml:"setting"`
 }
 
@@ -138,30 +142,94 @@ func onExit() {
 	os.Exit(0)
 }
 
+func isCodeRecent(dateStr string) bool {
+	log.Printf("开始解析日期: %s", dateStr)
+
+	// 使用本地时区解析日期
+	parsedTime, err := time.ParseInLocation("2006-01-02 15:04:05", dateStr, time.Local)
+	if err != nil {
+		log.Printf("解析日期失败: %v", err)
+		return false
+	}
+
+	// 获取当前时间
+	now := time.Now()
+
+	// 计算时间差
+	timeDiff := now.Sub(parsedTime)
+
+	// 获取最大允许时间差
+	maxDateDiff := time.Duration(globalConfig.Setting.MaxDateDiffSeconds) * time.Second
+
+	// 判断时间差的绝对值是否在允许范围内
+	isRecent := timeDiff.Abs() <= maxDateDiff
+
+	// 打印关键信息
+	log.Printf(
+		"解析日期: %s, 解析成功（本地时区）: %v, 当前时间: %v, 时间差: %v, 最大允许时间差: %v, 是否在允许范围内: %v",
+		dateStr, parsedTime, now, timeDiff, maxDateDiff, isRecent,
+	)
+
+	return isRecent
+}
+
+
 func getAndCopyCode() (string, error) {
-	// 优先尝试 GitHub
-	if globalConfig.Github.Token != "" {
-		code, err := getGithubCode(globalConfig.Github.Token, globalConfig.Github.Repository, globalConfig.Github.Path)
-		if err == nil {
-			clipboard.Write(clipboard.FmtText, []byte(code))
-			robotgo.TypeStr(code)
-			return code, nil
+	var lastCode string
+	var lastErr error
+
+	for attempt := 0; attempt < globalConfig.Setting.MaxPollingAttempts; attempt++ {
+		// 优先尝试 GitHub
+		if globalConfig.Github.Token != "" {
+			code, err := getGithubCode(globalConfig.Github.Token, globalConfig.Github.Repository, globalConfig.Github.Path)
+			if err == nil {
+				if isCodeRecent(code.Date) {
+					clipboard.Write(clipboard.FmtText, []byte(code.VerifyCode))
+					robotgo.TypeStr(code.VerifyCode)
+					return code.VerifyCode, nil
+				}
+				lastCode = code.VerifyCode
+				lastErr = nil
+			} else {
+				lastErr = err
+				log.Printf("从 GitHub 获取验证码失败: %v", err)
+			}
 		}
-		log.Printf("从 GitHub 获取验证码失败: %v", err)
+
+		// 尝试 Gitee
+		if globalConfig.Gitee.Token != "" {
+			code, err := getGiteeCode(globalConfig.Gitee.Token, globalConfig.Gitee.Repository, globalConfig.Gitee.Path)
+			if err == nil {
+				if isCodeRecent(code.Date) {
+					clipboard.Write(clipboard.FmtText, []byte(code.VerifyCode))
+					robotgo.TypeStr(code.VerifyCode)
+					return code.VerifyCode, nil
+				}
+				lastCode = code.VerifyCode
+				lastErr = nil
+			} else {
+				lastErr = err
+				log.Printf("从 Gitee 获取验证码失败: %v", err)
+			}
+		}
+
+		// 如果还有重试机会，等待指定时间
+		if attempt < globalConfig.Setting.MaxPollingAttempts-1 {
+			time.Sleep(time.Duration(globalConfig.Setting.PollingIntervalMillis) * time.Millisecond)
+		}
 	}
 
-	// 尝试 Gitee
-	if globalConfig.Gitee.Token != "" {
-		code, err := getGiteeCode(globalConfig.Gitee.Token, globalConfig.Gitee.Repository, globalConfig.Gitee.Path)
-		if err == nil {
-			clipboard.Write(clipboard.FmtText, []byte(code))
-			robotgo.TypeStr(code)
-			return code, nil
-		}
-		log.Printf("从 Gitee 获取验证码失败: %v", err)
+	if lastCode != "" {
+		clipboard.Write(clipboard.FmtText, []byte(lastCode))
+		robotgo.TypeStr(lastCode)
+		return lastCode, nil
 	}
 
-	return "", fmt.Errorf("无法从任何源获取验证码")
+	if lastErr != nil {
+		return "", fmt.Errorf("无法从任何源获取验证码: %v", lastErr)
+	}
+
+	return "", fmt.Errorf("无法获取有效的验证码")
 }
 
 func loadConfig() (*Config, error) {

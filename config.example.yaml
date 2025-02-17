@@ -1,3 +1,15 @@
+settings:
+  # 刷新间隔（毫秒）
+  interval: 2000
+  # 快捷键配置(多个按键用空格区分，如果需要用空格 使用 Space)
+  hotkey: "Alt C"
+  # 允许的最大时间差（秒）
+  max_date_diff_seconds: 120
+  # 轮询间隔（毫秒）
+  polling_interval_milliseconds: 1000
+  # 最大轮询次数
+  max_polling_attempts: 10
+
 github:
   # GitHub 个人访问令牌
   token: "your_github_token_here"
@@ -16,4 +28,4 @@ gitee:
   # 验证码文件在仓库中的路径
   path: "code.json"
   # 刷新间隔（秒）
-  interval: 3 
+  interval: 3

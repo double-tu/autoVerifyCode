@@ -77,17 +77,6 @@ func GetGithubCode(token, repository, path string) (string, error) {
 		return "", fmt.Errorf("验证码日期为空")
 	}
 	
-	// 清理日期字符串
-	dateStr = strings.TrimSpace(dateStr)
-	// 如果日期字符串长度超过19个字符，截取到秒部分
-	if len(dateStr) > 19 {
-		dateStr = dateStr[:19]
-	}
-	// 如果日期字符串长度正好是19个字符，去除末尾空格
-	if len(dateStr) == 19 && dateStr[len(dateStr)-1] == ' ' {
-		dateStr = dateStr[:18]
-	}
-	
 	codeTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
 	if err != nil {
 		return "", fmt.Errorf("解析日期失败: %v (日期字符串: %q)", err, dateStr)
@@ -150,9 +139,15 @@ func GetGiteeCode(token, repository, path string) (string, error) {
 	}
 
 	// 验证日期是否过期
-	codeTime, err := time.Parse("2006-01-02 15:04:05", verifyCode.Date)
+	dateStr := strings.TrimSpace(verifyCode.Date)
+	if dateStr == "" {
+		return "", fmt.Errorf("验证码日期为空")
+	}
+
+	
+	codeTime, err := time.Parse("2006-01-02 15:04:05", dateStr)
 	if err != nil {
-		return "", fmt.Errorf("解析日期失败: %v", err)
+		return "", fmt.Errorf("解析日期失败: %v (日期字符串: %q)", err, dateStr)
 	}
 
 	if time.Now().After(codeTime) {
@@ -163,11 +158,11 @@ func GetGiteeCode(token, repository, path string) (string, error) {
 }
 
 // 只保留小写版本的函数
-func getGithubCode(token, repository, path string) (string, error) {
+func getGithubCode(token, repository, path string) (VerifyCode, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/contents/%s", repository, path)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("创建请求失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("创建请求失败: %v", err)
 	}
 
 	req.Header.Set("Authorization", "token "+token)
@@ -179,13 +174,13 @@ func getGithubCode(token, repository, path string) (string, error) {
 	
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("发送请求失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("发送请求失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("GitHub API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
+		return VerifyCode{}, fmt.Errorf("GitHub API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
 	}
 
 	var result struct {
@@ -194,31 +189,31 @@ func getGithubCode(token, repository, path string) (string, error) {
 	}
 	
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析响应失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("解析响应失败: %v", err)
 	}
 
 	if result.Encoding != "base64" {
-		return "", fmt.Errorf("不支持的编码格式: %s", result.Encoding)
+		return VerifyCode{}, fmt.Errorf("不支持的编码格式: %s", result.Encoding)
 	}
 
 	content, err := base64.StdEncoding.DecodeString(result.Content)
 	if err != nil {
-		return "", fmt.Errorf("base64解码失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("base64解码失败: %v", err)
 	}
 
 	var verifyCode VerifyCode
 	if err := json.Unmarshal(content, &verifyCode); err != nil {
-		return "", fmt.Errorf("解析验证码数据失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("解析验证码数据失败: %v", err)
 	}
 
-	return verifyCode.VerifyCode, nil
+	return verifyCode, nil
 }
 
-func getGiteeCode(token, repository, path string) (string, error) {
+func getGiteeCode(token, repository, path string) (VerifyCode, error) {
 	url := fmt.Sprintf("https://gitee.com/api/v5/repos/%s/contents/%s", repository, path)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("创建请求失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("创建请求失败: %v", err)
 	}
 
 	req.Header.Set("Authorization", "token "+token)
@@ -229,13 +224,13 @@ func getGiteeCode(token, repository, path string) (string, error) {
 	
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("发送请求失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("发送请求失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("Gitee API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
+		return VerifyCode{}, fmt.Errorf("Gitee API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
 	}
 
 	var result struct {
@@ -244,22 +239,22 @@ func getGiteeCode(token, repository, path string) (string, error) {
 	}
 	
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析响应失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("解析响应失败: %v", err)
 	}
 
 	if result.Encoding != "base64" {
-		return "", fmt.Errorf("不支持的编码格式: %s", result.Encoding)
+		return VerifyCode{}, fmt.Errorf("不支持的编码格式: %s", result.Encoding)
 	}
 
 	content, err := base64.StdEncoding.DecodeString(result.Content)
 	if err != nil {
-		return "", fmt.Errorf("base64解码失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("base64解码失败: %v", err)
 	}
 
 	var verifyCode VerifyCode
 	if err := json.Unmarshal(content, &verifyCode); err != nil {
-		return "", fmt.Errorf("解析验证码数据失败: %v", err)
+		return VerifyCode{}, fmt.Errorf("解析验证码数据失败: %v", err)
 	}
 
-	return verifyCode.VerifyCode, nil
-} 
+	return verifyCode, nil
+}
