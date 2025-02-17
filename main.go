@@ -9,6 +9,7 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/go-vgo/robotgo"
 	"github.com/getlantern/systray"
 	"golang.design/x/clipboard"
 	"golang.design/x/hotkey/mainthread"
@@ -143,6 +144,7 @@ func getAndCopyCode() (string, error) {
 		code, err := getGithubCode(globalConfig.Github.Token, globalConfig.Github.Repository, globalConfig.Github.Path)
 		if err == nil {
 			clipboard.Write(clipboard.FmtText, []byte(code))
+			robotgo.TypeStr(code)
 			return code, nil
 		}
 		log.Printf("从 GitHub 获取验证码失败: %v", err)
@@ -153,6 +155,7 @@ func getAndCopyCode() (string, error) {
 		code, err := getGiteeCode(globalConfig.Gitee.Token, globalConfig.Gitee.Repository, globalConfig.Gitee.Path)
 		if err == nil {
 			clipboard.Write(clipboard.FmtText, []byte(code))
+			robotgo.TypeStr(code)
 			return code, nil
 		}
 		log.Printf("从 Gitee 获取验证码失败: %v", err)
